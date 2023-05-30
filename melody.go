@@ -1,6 +1,7 @@
 package melody
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/fasthttp/websocket"
@@ -249,6 +250,15 @@ func (m *Melody) BroadcastBinaryOthers(msg []byte, s *Session) error {
 	return m.BroadcastBinaryFilter(msg, func(q *Session) bool {
 		return s != q
 	})
+}
+
+// BroadcastJson broadcasts the given object as a json text message to all sessions.
+func (m *Melody) BroadcastJson(obj interface{}) error {
+	res, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	return m.Broadcast(res)
 }
 
 // Sessions returns all sessions. An error is returned if the melody session is closed.
