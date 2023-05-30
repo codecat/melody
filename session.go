@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/fasthttp/websocket"
 )
 
 // Session wrapper around websocket connections.

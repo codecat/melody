@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/websocket"
+	"github.com/fasthttp/websocket"
 )
 
 // Close codes defined in RFC 6455, section 11.7.
