@@ -2,16 +2,16 @@ package melody
 
 import (
 	"net"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/fasthttp/websocket"
+	"github.com/valyala/fasthttp"
 )
 
 // Session wrapper around websocket connections.
 type Session struct {
-	Request    *http.Request
+	Request    *fasthttp.Request //TODO: Do we need this?
 	Keys       map[string]interface{}
 	conn       *websocket.Conn
 	output     chan *envelope

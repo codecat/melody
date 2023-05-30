@@ -1,10 +1,10 @@
 package melody
 
 import (
-	"net/http"
 	"sync"
 
 	"github.com/fasthttp/websocket"
+	"github.com/valyala/fasthttp"
 )
 
 // Close codes defined in RFC 6455, section 11.7.
@@ -35,7 +35,7 @@ type filterFunc func(*Session) bool
 // Melody implements a websocket manager.
 type Melody struct {
 	Config                   *Config
-	Upgrader                 *websocket.Upgrader
+	Upgrader                 *websocket.FastHTTPUpgrader
 	messageHandler           handleMessageFunc
 	messageHandlerBinary     handleMessageFunc
 	messageSentHandler       handleMessageFunc
@@ -50,19 +50,17 @@ type Melody struct {
 
 // New creates a new melody instance with default Upgrader and Config.
 func New() *Melody {
-	upgrader := &websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
-
 	hub := newHub()
 
 	go hub.run()
 
 	return &Melody{
-		Config:                   newConfig(),
-		Upgrader:                 upgrader,
+		Config: newConfig(),
+		Upgrader: &websocket.FastHTTPUpgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin:     func(ctx *fasthttp.RequestCtx) bool { return true },
+		},
 		messageHandler:           func(*Session, []byte) {},
 		messageHandlerBinary:     func(*Session, []byte) {},
 		messageSentHandler:       func(*Session, []byte) {},
@@ -136,48 +134,47 @@ func (m *Melody) HandleClose(fn func(*Session, int, string) error) {
 }
 
 // HandleRequest upgrades http requests to websocket connections and dispatches them to be handled by the melody instance.
-func (m *Melody) HandleRequest(w http.ResponseWriter, r *http.Request) error {
-	return m.HandleRequestWithKeys(w, r, nil)
+func (m *Melody) HandleRequest(ctx *fasthttp.RequestCtx) error {
+	return m.HandleRequestWithKeys(ctx, nil)
 }
 
-// HandleRequestWithKeys does the same as HandleRequest but populates session.Keys with keys.
-func (m *Melody) HandleRequestWithKeys(w http.ResponseWriter, r *http.Request, keys map[string]interface{}) error {
+func (m *Melody) HandleRequestWithKeys(ctx *fasthttp.RequestCtx, keys map[string]interface{}) error {
 	if m.hub.closed() {
 		return ErrClosed
 	}
 
-	conn, err := m.Upgrader.Upgrade(w, r, w.Header())
+	err := m.Upgrader.Upgrade(ctx, func(c *websocket.Conn) {
+		session := &Session{
+			Request:    &ctx.Request,
+			Keys:       keys,
+			conn:       c,
+			output:     make(chan *envelope, m.Config.MessageBufferSize),
+			outputDone: make(chan struct{}),
+			melody:     m,
+			open:       true,
+			rwmutex:    &sync.RWMutex{},
+		}
+
+		m.hub.register <- session
+
+		m.connectHandler(session)
+
+		go session.writePump()
+
+		session.readPump()
+
+		if !m.hub.closed() {
+			m.hub.unregister <- session
+		}
+
+		session.close()
+
+		m.disconnectHandler(session)
+	})
 
 	if err != nil {
 		return err
 	}
-
-	session := &Session{
-		Request:    r,
-		Keys:       keys,
-		conn:       conn,
-		output:     make(chan *envelope, m.Config.MessageBufferSize),
-		outputDone: make(chan struct{}),
-		melody:     m,
-		open:       true,
-		rwmutex:    &sync.RWMutex{},
-	}
-
-	m.hub.register <- session
-
-	m.connectHandler(session)
-
-	go session.writePump()
-
-	session.readPump()
-
-	if !m.hub.closed() {
-		m.hub.unregister <- session
-	}
-
-	session.close()
-
-	m.disconnectHandler(session)
 
 	return nil
 }

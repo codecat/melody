@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/fasthttp/websocket v1.5.3
 	github.com/stretchr/testify v1.8.0
+	github.com/valyala/fasthttp v1.47.0
 )
 
 require (
@@ -14,6 +15,5 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
