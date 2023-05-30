@@ -319,8 +319,6 @@ func TestClose(t *testing.T) {
 }
 
 func TestLen(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-
 	connect := int(rand.Int31n(100))
 	disconnect := rand.Float32()
 	conns := make([]*websocket.Conn, connect)
@@ -360,8 +358,6 @@ func TestLen(t *testing.T) {
 }
 
 func TestSessions(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-
 	connect := int(rand.Int31n(100))
 	disconnect := rand.Float32()
 	conns := make([]*websocket.Conn, connect)
