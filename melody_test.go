@@ -619,6 +619,9 @@ func TestSessionKeys(t *testing.T) {
 
 		conn.WriteMessage(websocket.TextMessage, []byte(msg))
 
+		// We must wait if we want the stamp to be greater
+		time.Sleep(1 * time.Millisecond)
+
 		_, ret, err := conn.ReadMessage()
 
 		assert.Nil(t, err)
