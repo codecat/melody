@@ -11,7 +11,7 @@ import (
 
 // Session wrapper around websocket connections.
 type Session struct {
-	Request    *fasthttp.Request //TODO: Do we need this?
+	Request    *fasthttp.Request
 	Keys       map[string]interface{}
 	conn       *websocket.Conn
 	output     chan *envelope
