@@ -261,6 +261,15 @@ func (m *Melody) BroadcastJson(obj interface{}) error {
 	return m.Broadcast(res)
 }
 
+// BroadcastJson broadcasts the given object as a json text message to all sessions that fn returns true for.
+func (m *Melody) BroadcastJsonFilter(obj interface{}, fn func(*Session) bool) error {
+	res, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	return m.BroadcastFilter(res, fn)
+}
+
 // Sessions returns all sessions. An error is returned if the melody session is closed.
 func (m *Melody) Sessions() ([]*Session, error) {
 	if m.hub.closed() {
