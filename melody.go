@@ -91,6 +91,11 @@ func (m *Melody) HandlePong(fn func(*Session)) {
 }
 
 // HandleMessage fires fn when a text message comes in.
+// NOTE: by default Melody handles messages sequentially for each
+// session. This has the effect that a message handler exceeding the
+// read deadline (Config.PongWait, by default 1 minute) will time out
+// the session. Concurrent message handling can be turned on by setting
+// Config.ConcurrentMessageHandling to true.
 func (m *Melody) HandleMessage(fn func(*Session, []byte)) {
 	m.messageHandler = fn
 }
@@ -139,7 +144,8 @@ func (m *Melody) HandleRequest(ctx *fasthttp.RequestCtx) error {
 	return m.HandleRequestWithKeys(ctx, nil)
 }
 
-func (m *Melody) HandleRequestWithKeys(ctx *fasthttp.RequestCtx, keys map[string]interface{}) error {
+// HandleRequestWithKeys does the same as HandleRequest but populates session.Keys with keys.
+func (m *Melody) HandleRequestWithKeys(ctx *fasthttp.RequestCtx, keys map[string]any) error {
 	if m.hub.closed() {
 		return ErrClosed
 	}
@@ -149,7 +155,7 @@ func (m *Melody) HandleRequestWithKeys(ctx *fasthttp.RequestCtx, keys map[string
 			Request:    &ctx.Request,
 			Keys:       keys,
 			conn:       c,
-			output:     make(chan *envelope, m.Config.MessageBufferSize),
+			output:     make(chan envelope, m.Config.MessageBufferSize),
 			outputDone: make(chan struct{}),
 			melody:     m,
 			open:       true,
@@ -186,7 +192,7 @@ func (m *Melody) Broadcast(msg []byte) error {
 		return ErrClosed
 	}
 
-	message := &envelope{t: websocket.TextMessage, msg: msg}
+	message := envelope{t: websocket.TextMessage, msg: msg}
 	m.hub.broadcast <- message
 
 	return nil
@@ -198,7 +204,7 @@ func (m *Melody) BroadcastFilter(msg []byte, fn func(*Session) bool) error {
 		return ErrClosed
 	}
 
-	message := &envelope{t: websocket.TextMessage, msg: msg, filter: fn}
+	message := envelope{t: websocket.TextMessage, msg: msg, filter: fn}
 	m.hub.broadcast <- message
 
 	return nil
@@ -227,7 +233,7 @@ func (m *Melody) BroadcastBinary(msg []byte) error {
 		return ErrClosed
 	}
 
-	message := &envelope{t: websocket.BinaryMessage, msg: msg}
+	message := envelope{t: websocket.BinaryMessage, msg: msg}
 	m.hub.broadcast <- message
 
 	return nil
@@ -239,7 +245,7 @@ func (m *Melody) BroadcastBinaryFilter(msg []byte, fn func(*Session) bool) error
 		return ErrClosed
 	}
 
-	message := &envelope{t: websocket.BinaryMessage, msg: msg, filter: fn}
+	message := envelope{t: websocket.BinaryMessage, msg: msg, filter: fn}
 	m.hub.broadcast <- message
 
 	return nil
@@ -284,7 +290,7 @@ func (m *Melody) Close() error {
 		return ErrClosed
 	}
 
-	m.hub.exit <- &envelope{t: websocket.CloseMessage, msg: []byte{}}
+	m.hub.exit <- envelope{t: websocket.CloseMessage, msg: []byte{}}
 
 	return nil
 }
@@ -296,7 +302,7 @@ func (m *Melody) CloseWithMsg(msg []byte) error {
 		return ErrClosed
 	}
 
-	m.hub.exit <- &envelope{t: websocket.CloseMessage, msg: msg}
+	m.hub.exit <- envelope{t: websocket.CloseMessage, msg: msg}
 
 	return nil
 }
