@@ -13,6 +13,6 @@ your way so you can write real-time apps. Features include:
 * [x] Store data on sessions.
 
 ## Full readme
-This is a fork that attempts to add support for fasthttp.
+This is a fork that adds support for fasthttp.
 
 Please refer to [the original project](https://github.com/olahol/melody) for more details.
