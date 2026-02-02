@@ -51,12 +51,17 @@ type Melody struct {
 
 // New creates a new melody instance with default Upgrader and Config.
 func New() *Melody {
+	return NewWithConfig(newConfig())
+}
+
+// NewWithConfig creates a new melody instance with default Upgrader and specified Config.
+func NewWithConfig(config *Config) *Melody {
 	hub := newHub()
 
 	go hub.run()
 
 	return &Melody{
-		Config: newConfig(),
+		Config: config,
 		Upgrader: &websocket.FastHTTPUpgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
