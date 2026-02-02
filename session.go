@@ -18,7 +18,7 @@ type Session struct {
 	outputDone chan struct{}
 	melody     *Melody
 	open       bool
-	rwmutex    *sync.RWMutex
+	rwmutex    sync.RWMutex
 }
 
 func (s *Session) writeMessage(message envelope) {
@@ -39,7 +39,13 @@ func (s *Session) writeRaw(message envelope) error {
 		return ErrWriteClosed
 	}
 
-	s.conn.SetWriteDeadline(time.Now().Add(s.melody.Config.WriteWait))
+	// Use per-message deadline if specified, otherwise use global config
+	deadline := message.writeWait
+	if deadline == 0 {
+		deadline = s.melody.Config.WriteWait
+	}
+
+	s.conn.SetWriteDeadline(time.Now().Add(deadline))
 	err := s.conn.WriteMessage(message.t, message.msg)
 
 	if err != nil {
@@ -258,4 +264,36 @@ func (s *Session) RemoteAddr() net.Addr {
 // This can be used to e.g. set/read additional websocket options or to write sychronous messages.
 func (s *Session) WebsocketConnection() *websocket.Conn {
 	return s.conn
+}
+
+// WriteWithDeadline writes a text message to the session with a custom write deadline.
+// If deadline is 0, uses Config.WriteWait.
+func (s *Session) WriteWithDeadline(msg []byte, deadline time.Duration) error {
+	if s.closed() {
+		return ErrSessionClosed
+	}
+
+	s.writeMessage(envelope{
+		t:         websocket.TextMessage,
+		msg:       msg,
+		writeWait: deadline,
+	})
+
+	return nil
+}
+
+// WriteBinaryWithDeadline writes a binary message to the session with a custom write deadline.
+// If deadline is 0, uses Config.WriteWait.
+func (s *Session) WriteBinaryWithDeadline(msg []byte, deadline time.Duration) error {
+	if s.closed() {
+		return ErrSessionClosed
+	}
+
+	s.writeMessage(envelope{
+		t:         websocket.BinaryMessage,
+		msg:       msg,
+		writeWait: deadline,
+	})
+
+	return nil
 }

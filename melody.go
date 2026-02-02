@@ -2,7 +2,7 @@ package melody
 
 import (
 	"encoding/json"
-	"sync"
+	"time"
 
 	"github.com/fasthttp/websocket"
 	"github.com/valyala/fasthttp"
@@ -56,10 +56,6 @@ func New() *Melody {
 
 // NewWithConfig creates a new melody instance with default Upgrader and specified Config.
 func NewWithConfig(config *Config) *Melody {
-	hub := newHub()
-
-	go hub.run()
-
 	return &Melody{
 		Config: config,
 		Upgrader: &websocket.FastHTTPUpgrader{
@@ -76,7 +72,7 @@ func NewWithConfig(config *Config) *Melody {
 		connectHandler:           func(*Session) {},
 		disconnectHandler:        func(*Session) {},
 		pongHandler:              func(*Session) {},
-		hub:                      hub,
+		hub:                      newHub(),
 	}
 }
 
@@ -164,10 +160,9 @@ func (m *Melody) HandleRequestWithKeys(ctx *fasthttp.RequestCtx, keys map[string
 			outputDone: make(chan struct{}),
 			melody:     m,
 			open:       true,
-			rwmutex:    &sync.RWMutex{},
 		}
 
-		m.hub.register <- session
+		m.hub.register(session)
 
 		m.connectHandler(session)
 
@@ -176,7 +171,7 @@ func (m *Melody) HandleRequestWithKeys(ctx *fasthttp.RequestCtx, keys map[string
 		session.readPump()
 
 		if !m.hub.closed() {
-			m.hub.unregister <- session
+			m.hub.unregister(session)
 		}
 
 		session.close()
@@ -198,7 +193,7 @@ func (m *Melody) Broadcast(msg []byte) error {
 	}
 
 	message := envelope{t: websocket.TextMessage, msg: msg}
-	m.hub.broadcast <- message
+	m.hub.broadcast(message)
 
 	return nil
 }
@@ -210,7 +205,7 @@ func (m *Melody) BroadcastFilter(msg []byte, fn func(*Session) bool) error {
 	}
 
 	message := envelope{t: websocket.TextMessage, msg: msg, filter: fn}
-	m.hub.broadcast <- message
+	m.hub.broadcast(message)
 
 	return nil
 }
@@ -239,7 +234,7 @@ func (m *Melody) BroadcastBinary(msg []byte) error {
 	}
 
 	message := envelope{t: websocket.BinaryMessage, msg: msg}
-	m.hub.broadcast <- message
+	m.hub.broadcast(message)
 
 	return nil
 }
@@ -251,7 +246,7 @@ func (m *Melody) BroadcastBinaryFilter(msg []byte, fn func(*Session) bool) error
 	}
 
 	message := envelope{t: websocket.BinaryMessage, msg: msg, filter: fn}
-	m.hub.broadcast <- message
+	m.hub.broadcast(message)
 
 	return nil
 }
@@ -295,7 +290,7 @@ func (m *Melody) Close() error {
 		return ErrClosed
 	}
 
-	m.hub.exit <- envelope{t: websocket.CloseMessage, msg: []byte{}}
+	m.hub.exit(envelope{t: websocket.CloseMessage, msg: []byte{}})
 
 	return nil
 }
@@ -307,7 +302,7 @@ func (m *Melody) CloseWithMsg(msg []byte) error {
 		return ErrClosed
 	}
 
-	m.hub.exit <- envelope{t: websocket.CloseMessage, msg: msg}
+	m.hub.exit(envelope{t: websocket.CloseMessage, msg: msg})
 
 	return nil
 }
@@ -325,4 +320,74 @@ func (m *Melody) IsClosed() bool {
 // FormatCloseMessage formats closeCode and text as a WebSocket close message.
 func FormatCloseMessage(closeCode int, text string) []byte {
 	return websocket.FormatCloseMessage(closeCode, text)
+}
+
+// BroadcastWithDeadline broadcasts a text message with a custom write deadline.
+// If deadline is 0, uses Config.WriteWait.
+func (m *Melody) BroadcastWithDeadline(msg []byte, deadline time.Duration) error {
+	if m.hub.closed() {
+		return ErrClosed
+	}
+
+	message := envelope{
+		t:         websocket.TextMessage,
+		msg:       msg,
+		writeWait: deadline,
+	}
+	m.hub.broadcast(message)
+
+	return nil
+}
+
+// BroadcastFilterWithDeadline broadcasts a text message to filtered sessions with a custom write deadline.
+// If deadline is 0, uses Config.WriteWait.
+func (m *Melody) BroadcastFilterWithDeadline(msg []byte, deadline time.Duration, fn func(*Session) bool) error {
+	if m.hub.closed() {
+		return ErrClosed
+	}
+
+	message := envelope{
+		t:         websocket.TextMessage,
+		msg:       msg,
+		filter:    fn,
+		writeWait: deadline,
+	}
+	m.hub.broadcast(message)
+
+	return nil
+}
+
+// BroadcastBinaryWithDeadline broadcasts a binary message with a custom write deadline.
+// If deadline is 0, uses Config.WriteWait.
+func (m *Melody) BroadcastBinaryWithDeadline(msg []byte, deadline time.Duration) error {
+	if m.hub.closed() {
+		return ErrClosed
+	}
+
+	message := envelope{
+		t:         websocket.BinaryMessage,
+		msg:       msg,
+		writeWait: deadline,
+	}
+	m.hub.broadcast(message)
+
+	return nil
+}
+
+// BroadcastBinaryFilterWithDeadline broadcasts a binary message to filtered sessions with a custom write deadline.
+// If deadline is 0, uses Config.WriteWait.
+func (m *Melody) BroadcastBinaryFilterWithDeadline(msg []byte, deadline time.Duration, fn func(*Session) bool) error {
+	if m.hub.closed() {
+		return ErrClosed
+	}
+
+	message := envelope{
+		t:         websocket.BinaryMessage,
+		msg:       msg,
+		filter:    fn,
+		writeWait: deadline,
+	}
+	m.hub.broadcast(message)
+
+	return nil
 }
